@@ -14,6 +14,13 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    match args.command:
+        case "search":
+            print("Searching for:", args.query)
+            pass
+        case _:
+            parser.print_help()
+
     file_path = Path("~/Krish/RAG/rag-search-engine/data/movies.json").expanduser()
 
     movies = {}
@@ -35,9 +42,13 @@ def main() -> None:
     for i,j in movies.items():
         if target in j:
             result.append(j)
-    
-    for i in range(len(result)):
-        print(i+1,". ", result[i])
+
+    if len(result) > 5:
+        for i in range(5):
+            print(str(i+1)+".", result[i])
+    else:
+        for i in range(len(result)):
+            print(str(i+1) + ".", result[i])
 
 
 if __name__ == "__main__":
