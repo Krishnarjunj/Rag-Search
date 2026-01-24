@@ -14,6 +14,7 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    args.query = args.query.lower()
     match args.command:
         case "search":
             print("Searching for:", args.query)
@@ -40,7 +41,7 @@ def main() -> None:
     target = args.query
 
     for i,j in movies.items():
-        if target in j:
+        if target in j.lower():
             result.append(j)
 
     if len(result) > 5:
