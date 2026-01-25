@@ -15,6 +15,12 @@ def tokenization(query):
     result = query.split()
     return result
 
+def remove_stopwords(query, stopwords):
+    for i in query:
+        if i in stopwords:
+            query.remove(i)
+    return query
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -35,12 +41,20 @@ def main() -> None:
         case _:
             parser.print_help()
 
-    file_path = Path("~/Krish/RAG/rag-search-engine/data/movies.json").expanduser()
+    file_path_json = Path("~/Krish/RAG/rag-search-engine/data/movies.json").expanduser()
+    file_path_stop = Path("~/Krish/RAG/rag-search-engine/data/stopwords.txt").expanduser()
+
+    with open(file_path_stop, "r") as file:
+        content = file.read()
+
+    stopwords = content.splitlines()
+
+    user_query = remove_stopwords(user_query, stopwords)
 
     movies = {}
     
     try:
-        with open(file_path, "r") as file:
+        with open(file_path_json, "r") as file:
             data = json.load(file)
     except:
         print("couldnt open file")
@@ -52,24 +66,29 @@ def main() -> None:
     result = []
     found = False 
 
-    for i,j in movies.items():
+    for i, j in movies.items():
         clean_title = remove_punc(j.lower())
         tokenized_title = tokenization(clean_title)
-        for k in user_query:
-            if k in tokenized_title:
-                result.append(j)
-                found = True
+        cleaned_title = remove_stopwords(tokenized_title, stopwords)
+
+        found = False 
+
+        for word in cleaned_title:
+            for k in user_query:
+                if k in word:
+                    result.append(j)
+                    found = True
+                    break
+            if found:
                 break
-        if found:
-            found = False
-            continue
+
 
                 
         #if target in clean_title:
         #   result.append(j)
     
     if len(result) > 5:
-        for i in range(len(result)):
+        for i in range(5):
             print(str(i+1)+".", result[i])
     else:
         for i in range(len(result)):
