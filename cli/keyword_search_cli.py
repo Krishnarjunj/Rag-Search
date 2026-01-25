@@ -4,6 +4,8 @@ import argparse
 import json 
 import string 
 from pathlib import Path
+from nltk.stem import PorterStemmer
+
 
 def remove_punc(query):
     punc = string.punctuation
@@ -21,7 +23,16 @@ def remove_stopwords(query, stopwords):
             query.remove(i)
     return query
 
+def stemming(query):
+    # instance of PorterStemmer
+    stemmer = PorterStemmer()
+    for i in range(len(query)):
+        query[i] = stemmer.stem(query[i])
+    return query
+
+
 def main() -> None:
+
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
@@ -50,6 +61,7 @@ def main() -> None:
     stopwords = content.splitlines()
 
     user_query = remove_stopwords(user_query, stopwords)
+    user_query = stemming(user_query)
 
     movies = {}
     
@@ -70,10 +82,11 @@ def main() -> None:
         clean_title = remove_punc(j.lower())
         tokenized_title = tokenization(clean_title)
         cleaned_title = remove_stopwords(tokenized_title, stopwords)
+        preprocessed_title = stemming(cleaned_title)
 
         found = False 
 
-        for word in cleaned_title:
+        for word in preprocessed_title:
             for k in user_query:
                 if k in word:
                     result.append(j)

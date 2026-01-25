@@ -23,7 +23,7 @@ table = str.maketrans("", "", "123") # deletes the instances of 1, 2 and 3
 
 str.maketrans(x, y, z)
 x → characters to replace
-y → what to replace them with
+Sy → what to replace them with
 z → characters to DELETE
 
 string.punctuation returns all the punctuation characters 
@@ -32,3 +32,7 @@ string.punctuation returns all the punctuation characters
 
 
 
+
+Stemming :
+running, runs, ran, run ---> run 
+==> using nltk.stem library ==> PorterStemmer class 
