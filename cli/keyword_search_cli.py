@@ -11,6 +11,10 @@ def remove_punc(query):
     clean_str = query.translate(table)
     return clean_str 
 
+def tokenization(query):
+    result = query.split()
+    return result
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -22,6 +26,7 @@ def main() -> None:
 
     args.query = args.query.lower()
     args.query = remove_punc(args.query)
+    user_query = tokenization(args.query)
 
     match args.command:
         case "search":
@@ -45,16 +50,26 @@ def main() -> None:
         movies[ele["id"]] = ele["title"]
 
     result = []
-
-    target = args.query
+    found = False 
 
     for i,j in movies.items():
         clean_title = remove_punc(j.lower())
-        if target in clean_title:
-            result.append(j)
+        tokenized_title = tokenization(clean_title)
+        for k in user_query:
+            if k in tokenized_title:
+                result.append(j)
+                found = True
+                break
+        if found:
+            found = False
+            continue
 
+                
+        #if target in clean_title:
+        #   result.append(j)
+    
     if len(result) > 5:
-        for i in range(5):
+        for i in range(len(result)):
             print(str(i+1)+".", result[i])
     else:
         for i in range(len(result)):
