@@ -2,8 +2,14 @@
 
 import argparse
 import json 
+import string 
 from pathlib import Path
 
+def remove_punc(query):
+    punc = string.punctuation
+    table = str.maketrans("", "", punc)
+    clean_str = query.translate(table)
+    return clean_str 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
@@ -15,6 +21,8 @@ def main() -> None:
     args = parser.parse_args()
 
     args.query = args.query.lower()
+    args.query = remove_punc(args.query)
+
     match args.command:
         case "search":
             print("Searching for:", args.query)
@@ -41,7 +49,8 @@ def main() -> None:
     target = args.query
 
     for i,j in movies.items():
-        if target in j.lower():
+        clean_title = remove_punc(j.lower())
+        if target in clean_title:
             result.append(j)
 
     if len(result) > 5:
