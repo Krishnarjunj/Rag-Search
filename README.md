@@ -29,10 +29,16 @@ z → characters to DELETE
 string.punctuation returns all the punctuation characters 
 !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
 
-
-
-
-
 Stemming :
 running, runs, ran, run ---> run 
 ==> using nltk.stem library ==> PorterStemmer class 
+
+
+-----------------------------------------------------------------------------
+Forward index = maps location --> value 
+Inverted index = maps value --> location
+
+Inverted index ==> O(1) for each token ; but building index is slow bcs need to ready every 
+doc for it 
+
+

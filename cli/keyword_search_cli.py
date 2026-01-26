@@ -6,6 +6,20 @@ import string
 from pathlib import Path
 from nltk.stem import PorterStemmer
 
+class InvertedIndex:
+    def __init__(self):
+        self.index = {}
+        self.docmap = {}
+
+
+    def __add_document(self, doc_id, text):
+        token = text.lower().split()
+        for i in token:
+            index[i] = doc_id
+
+    def get_documents(self, term):
+        
+
 
 def remove_punc(query):
     punc = string.punctuation
