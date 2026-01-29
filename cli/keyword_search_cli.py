@@ -1,25 +1,12 @@
 #!/usr/bin/env python3
 
 import argparse
-import json 
-import string 
+import json
+import string
+import sys
 from pathlib import Path
 from nltk.stem import PorterStemmer
-
-class InvertedIndex:
-    def __init__(self):
-        self.index = {}
-        self.docmap = {}
-
-
-    def __add_document(self, doc_id, text):
-        token = text.lower().split()
-        for i in token:
-            index[i] = doc_id
-
-    def get_documents(self, term):
-        
-
+from inverted_index import InvertedIndex
 
 def remove_punc(query):
     punc = string.punctuation
@@ -53,21 +40,35 @@ def main() -> None:
     search_parser = subparsers.add_parser("search", help="Search movies using BM25")
     search_parser.add_argument("query", type=str, help="Search query")
 
+    build_parser = subparsers.add_parser("build", help="build inverted index")
+
     args = parser.parse_args()
 
-    args.query = args.query.lower()
-    args.query = remove_punc(args.query)
-    user_query = tokenization(args.query)
+
+    file_path_json = Path("~/Krish/RAG/rag-search-engine/data/movies.json").expanduser()
+    file_path_stop = Path("~/Krish/RAG/rag-search-engine/data/stopwords.txt").expanduser()
 
     match args.command:
         case "search":
             print("Searching for:", args.query)
             pass
-        case _:
-            parser.print_help()
+    
+        case "build":
+            with open(file_path_json, "r") as f:
+                data = json.load(f)
+                movies = data["movies"]
 
-    file_path_json = Path("~/Krish/RAG/rag-search-engine/data/movies.json").expanduser()
-    file_path_stop = Path("~/Krish/RAG/rag-search-engine/data/stopwords.txt").expanduser()
+            idx = InvertedIndex()
+            idx.build(movies)
+            idx.save()
+
+            docs = idx.get_documents("merida")
+            print(f"First document for token 'merida' = {docs[0]}")
+            return
+
+    args.query = args.query.lower()
+    args.query = remove_punc(args.query)
+    user_query = tokenization(args.query)
 
     with open(file_path_stop, "r") as file:
         content = file.read()
