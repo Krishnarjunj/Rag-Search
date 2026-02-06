@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 
 import argparse
-import json 
-from pathlib import Path
 
 
 def main() -> None:
@@ -14,30 +12,12 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    file_path = Path("~/Krish/RAG/rag-search-engine/data/movies.json").expanduser()
-
-    movies = {}
-    
-    try:
-        with open(file_path, "r") as file:
-            data = json.load(file)
-    except:
-        print("couldnt open file")
-        return
-
-    for ele in data["movies"]:
-        movies[ele["id"]] = ele["title"]
-
-    result = []
-
-    target = args.query
-
-    for i,j in movies.items():
-        if target in j:
-            result.append(j)
-    
-    for i in range(len(result)):
-        print(i+1,". ", result[i])
+    match args.command:
+        case "search":
+            print(f"Searching for: {args.query}")
+            pass
+        case _:
+            parser.print_help()
 
 
 if __name__ == "__main__":
