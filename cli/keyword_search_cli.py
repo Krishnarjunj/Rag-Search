@@ -5,6 +5,26 @@ import json
 from pathlib import Path
 import string
 
+def remove_stopwords(input_list, stop_words):
+    if isinstance(input_list, str):
+        input_list = input_list.split()
+        for word in input_list:
+            if word in stop_words:
+                input_list.remove(word)
+        res_str = ""
+        for word in input_list:
+            res_str += word
+            res_str += " "
+        res_str = res_str.rstrip()
+
+        return res_str
+
+    else:
+        for word in input_list:
+            if word in stop_words:
+                input_list.remove(word)
+        return input_list
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
@@ -17,20 +37,26 @@ def main() -> None:
 
     # FILE PATH
     file_path_json = Path("~/Krish/RAG/rag-search-engine/data/movies.json").expanduser()
+    file_path_stop = Path("~/Krish/RAG/rag-search-engine/data/stopwords.txt").expanduser()
 
     # Removing punctuations
     Punctuations = string.punctuation
     table = str.maketrans("", "", Punctuations)
 
 
-    # LOAD FILE
+    # LOAD FILE - Json and stop words
     with open(file_path_json, 'r') as f:
         data_json = json.load(f)
+
+    with open(file_path_stop, 'r') as f:
+        data_stop = f.read()
+    stop_words = data_stop.splitlines()
 
     # QUERY
     search_query = args.query.lower() #Lowercasing
     search_query.translate(table) #Removing punctuations
     tokenized_query = search_query.split() #tokenizing query
+    clean_query = remove_stopwords(tokenized_query, stop_words) #removing stop words
 
     match args.command:
         case "search":
@@ -44,12 +70,13 @@ def main() -> None:
     for m in data_json["movies"]:
         movie_list.append(m["title"])
 
+
     # Token to token comparison and adding to result
     result_list = []
     found = False
     for query_token in tokenized_query:
         for title in movie_list:
-            clean_title = title.lower().translate(table)
+            clean_title = remove_stopwords(title.lower().translate(table), stop_words)
             for title_token in clean_title.split():
                 if query_token in title_token:
                     result_list.append(title)
