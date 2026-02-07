@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import string
 from nltk.stem import PorterStemmer
+from Inverted_Index import InvertedIndex
 
 def filter_stopwords_stemming(input_list, stop_words):
     stemmer = PorterStemmer()
@@ -46,11 +47,23 @@ def main() -> None:
     search_parser = subparsers.add_parser("search", help="Search movies using BM25")
     search_parser.add_argument("query", type=str, help="Search query")
 
+    # build method
+    search_parser = subparsers.add_parser("build")
+
     args = parser.parse_args()
 
     # FILE PATH
     file_path_json = Path("~/Krish/RAG/rag-search-engine/data/movies.json").expanduser()
     file_path_stop = Path("~/Krish/RAG/rag-search-engine/data/stopwords.txt").expanduser()
+
+    # CONDITION FOR ARG PARSED 
+    if args.command == "build":
+        Obj = InvertedIndex()
+        Obj.build()
+        Obj.save()
+        docs = Obj.index["Merida"]
+        print(f"First document for token 'merida' = {docs[0]}")
+        return
 
     # Removing punctuations
     Punctuations = string.punctuation
