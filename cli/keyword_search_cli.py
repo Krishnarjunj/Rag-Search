@@ -4,13 +4,22 @@ import argparse
 import json
 from pathlib import Path
 import string
+from nltk.stem import PorterStemmer
 
-def remove_stopwords(input_list, stop_words):
+def filter_stopwords_stemming(input_list, stop_words):
+    stemmer = PorterStemmer()
+
     if isinstance(input_list, str):
         input_list = input_list.split()
+
+        # removing stop words
         for word in input_list:
             if word in stop_words:
                 input_list.remove(word)
+        # stemming
+        for i in range(len(input_list)):
+            input_list[i] = stemmer.stem(input_list[i])
+
         res_str = ""
         for word in input_list:
             res_str += word
@@ -20,9 +29,13 @@ def remove_stopwords(input_list, stop_words):
         return res_str
 
     else:
+        # removing stop words
         for word in input_list:
             if word in stop_words:
                 input_list.remove(word)
+        # stemming
+        for i in range(len(input_list)):
+            input_list[i] = stemmer.stem(input_list[i])
         return input_list
 
 
@@ -56,7 +69,7 @@ def main() -> None:
     search_query = args.query.lower() #Lowercasing
     search_query.translate(table) #Removing punctuations
     tokenized_query = search_query.split() #tokenizing query
-    clean_query = remove_stopwords(tokenized_query, stop_words) #removing stop words
+    clean_query = filter_stopwords_stemming(tokenized_query, stop_words) #removing stop words
 
     match args.command:
         case "search":
@@ -76,7 +89,7 @@ def main() -> None:
     found = False
     for query_token in tokenized_query:
         for title in movie_list:
-            clean_title = remove_stopwords(title.lower().translate(table), stop_words)
+            clean_title = filter_stopwords_stemming(title.lower().translate(table), stop_words)
             for title_token in clean_title.split():
                 if query_token in title_token:
                     result_list.append(title)
