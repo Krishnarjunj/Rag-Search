@@ -50,20 +50,14 @@ def main() -> None:
     # build method
     search_parser = subparsers.add_parser("build")
 
+    # Make the object
+    Obj = InvertedIndex()
+
     args = parser.parse_args()
 
     # FILE PATH
     file_path_json = Path("~/Krish/RAG/rag-search-engine/data/movies.json").expanduser()
     file_path_stop = Path("~/Krish/RAG/rag-search-engine/data/stopwords.txt").expanduser()
-
-    # CONDITION FOR ARG PARSED 
-    if args.command == "build":
-        Obj = InvertedIndex()
-        Obj.build()
-        Obj.save()
-        docs = Obj.index["Merida"]
-        print(f"First document for token 'merida' = {docs[0]}")
-        return
 
     # Removing punctuations
     Punctuations = string.punctuation
@@ -78,18 +72,59 @@ def main() -> None:
         data_stop = f.read()
     stop_words = data_stop.splitlines()
 
-    # QUERY
-    search_query = args.query.lower() #Lowercasing
-    search_query.translate(table) #Removing punctuations
-    tokenized_query = search_query.split() #tokenizing query
-    clean_query = filter_stopwords_stemming(tokenized_query, stop_words) #removing stop words
-
     match args.command:
         case "search":
             print(f"Searching for: {args.query}")
+            Obj.load()
             pass
+
+        case "build":
+            Obj.build()
+            Obj.save()
+            #test = Obj.index["Merida"]
+            #print(test[0])
+            return
+
         case _:
             parser.print_help()
+
+    # QUERY
+    search_query = args.query #Lowercasing
+    search_query = search_query.translate(table) #Removing punctuations
+    tokenized_query = search_query.split() #tokenizing query
+    clean_query = filter_stopwords_stemming(tokenized_query, stop_words) #removing stop words
+
+
+    # ------------- TF IDF --------------------- 
+    res_list = []
+    seen = set()
+
+    for token in search_query.split():
+        docs = Obj.get_documents(token)
+
+        for id in docs:
+            if id not in seen:
+                res_list.append(id)
+                seen.add(id)
+
+            if len(res_list) == 5:
+                break
+
+        if len(res_list) == 5:
+            break
+
+    seen = sorted(seen)
+
+    for i in seen:
+        item = Obj.docmap[i]
+        print(item["title"])
+
+
+    #for i in res_list:
+    #    print(i)
+
+    # ------------- PRE TF IDF -----------------
+    '''
 
     # Adding movies to a list from data
     movie_list = []
@@ -115,6 +150,8 @@ def main() -> None:
     else:
         for i in range(len(result_list)):
             print(f"{i+1}. {result_list[i]}")
+
+    '''
 
 
 
