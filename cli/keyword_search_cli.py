@@ -48,7 +48,12 @@ def main() -> None:
     search_parser.add_argument("query", type=str, help="Search query")
 
     # build method
-    search_parser = subparsers.add_parser("build")
+    build_parser = subparsers.add_parser("build")
+
+    #tf 
+    tf_parser = subparsers.add_parser("tf")
+    tf_parser.add_argument("docid", type=int)
+    tf_parser.add_argument("term", type= str)
 
     # Make the object
     Obj = InvertedIndex()
@@ -83,6 +88,14 @@ def main() -> None:
             Obj.save()
             #test = Obj.index["Merida"]
             #print(test[0])
+            return
+
+        case "tf":
+            Obj.load()
+            id = args.docid
+            st = args.term
+            freq = Obj.get_tf(id, st)
+            print(freq)
             return
 
         case _:

@@ -5,6 +5,7 @@ import os
 from nltk.stem import PorterStemmer
 import string
 from collections import defaultdict
+from collections import Counter
 
 def remove_punctuation(input_string):
     # Removing punctuations
@@ -55,11 +56,15 @@ class InvertedIndex:
     def __init__ (self):
         self.index = defaultdict(list)
         self.docmap = {}
+        self.term_frequencies = {}
 
     def __add_document(self, doc_id, text):
         tokenized_text = text.split()
+        c = Counter(tokenized_text)
         for token in tokenized_text:
             self.index[token.lower()].append(doc_id)
+        tokenized_str = ' '.join(tokenized_text)
+        self.term_frequencies[int(doc_id)] = c
 
     def get_documents(self, term):
         res_list = []
@@ -80,6 +85,7 @@ class InvertedIndex:
     def save(self):
         file_path_index = Path("~/Krish/RAG/rag-search-engine/cache/index.pkl").expanduser()
         file_path_docmap = Path("~/Krish/RAG/rag-search-engine/cache/docmap.pkl").expanduser()
+        file_path_freq = Path("~/Krish/RAG/rag-search-engine/cache/term_frequencies.pkl").expanduser()
 
         with open(file_path_index, 'wb') as f:
             pickle.dump(self.index, f)
@@ -87,12 +93,13 @@ class InvertedIndex:
         with open(file_path_docmap, 'wb') as f:
             pickle.dump(self.docmap, f)
 
+        with open(file_path_freq, "wb") as f:
+            pickle.dump(self.term_frequencies, f)
+
     def load(self):
         file_path_index = Path("~/Krish/RAG/rag-search-engine/cache/index.pkl").expanduser()
         file_path_docmap = Path("~/Krish/RAG/rag-search-engine/cache/docmap.pkl").expanduser()
-
-        if not os.path.exists(file_path_index) and os.path.exists(file_path_docmap):
-            raise Exception(f"Files do not exist")
+        file_path_freq = Path("~/Krish/RAG/rag-search-engine/cache/term_frequencies.pkl").expanduser()
 
         with open(file_path_index, "rb") as f:
             self.index = pickle.load(f)
@@ -101,6 +108,26 @@ class InvertedIndex:
         with open(file_path_docmap, "rb") as f:
             self.docmap = pickle.load(f)
             # print("loading docmap")
+
+        with open(file_path_freq, "rb") as f:
+            self.term_frequencies = pickle.load(f)
+            # print("loading term_frequencies")
+
+    def get_tf(self, doc_id, term):
+        term = remove_punctuation(term)
+        term = term.split()
+        term = filter_stopwords_stemming(term)
+
+        if len(term) > 1:
+            raise Exception("Length of term more than one")
+
+        freq_in_doc = self.term_frequencies[doc_id].get(term[0], 0)
+
+        if freq_in_doc == 0:
+            return 0
+
+        else:
+            return freq_in_doc
 
 
 
