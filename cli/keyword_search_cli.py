@@ -6,6 +6,7 @@ from pathlib import Path
 import string
 from nltk.stem import PorterStemmer
 from Inverted_Index import InvertedIndex
+import math
 
 def filter_stopwords_stemming(input_list, stop_words):
     stemmer = PorterStemmer()
@@ -55,6 +56,15 @@ def main() -> None:
     tf_parser.add_argument("docid", type=int)
     tf_parser.add_argument("term", type= str)
 
+    #idf
+    idf_parser = subparsers.add_parser("idf")
+    idf_parser.add_argument("term", type= str)
+
+    #tfidf
+    tfidf_parser = subparsers.add_parser("tfidf")
+    tfidf_parser.add_argument("docid", type=int)
+    tfidf_parser.add_argument("term", type=str)
+
     # Make the object
     Obj = InvertedIndex()
 
@@ -98,40 +108,56 @@ def main() -> None:
             print(freq)
             return
 
+        case "idf":
+            term = args.term
+            term = term.translate(table)
+            term =  str(filter_stopwords_stemming(term, stop_words))
+
+            Obj.load()
+            term_match_doc_count = 0
+
+            term_match_doc_count = len(set(Obj.index[term]))
+
+            total_doc_count = len(Obj.docmap)
+
+            idf = math.log((total_doc_count + 1) / (term_match_doc_count + 1))
+
+            print(f"Inverse document frequency of '{term}': {idf:.2f}")
+            return
+
+        case "tfidf":
+            docid = args.docid
+            term = args.term
+            Obj.load()
+
+
         case _:
             parser.print_help()
 
     # QUERY
-    search_query = args.query #Lowercasing
+    search_query = args.term #Lowercasing
     search_query = search_query.translate(table) #Removing punctuations
     tokenized_query = search_query.split() #tokenizing query
     clean_query = filter_stopwords_stemming(tokenized_query, stop_words) #removing stop words
 
 
     # ------------- TF IDF --------------------- 
-    res_list = []
-    seen = set()
 
-    for token in search_query.split():
-        docs = Obj.get_documents(token)
+    id = args.docid
+    st = args.term
+    tf = Obj.get_tf(args.docid, st)
 
-        for id in docs:
-            if id not in seen:
-                res_list.append(id)
-                seen.add(id)
+    #print(tf)
+    term_match_doc_count = 0
+    term_match_doc_count = len(set(Obj.index[str(args.term)]))
+    total_doc_count = len(Obj.docmap)
 
-            if len(res_list) == 5:
-                break
+    idf = math.log((total_doc_count + 1) / (term_match_doc_count + 1))
+    #print(idf)
 
-        if len(res_list) == 5:
-            break
+    tfidf = idf * tf
 
-    seen = sorted(seen)
-
-    for i in seen:
-        item = Obj.docmap[i]
-        print(item["title"])
-
+    print(f"TF-IDF score of '{args.term}' in document '{args.docid}': {tfidf:.2f}")
 
     #for i in res_list:
     #    print(i)
