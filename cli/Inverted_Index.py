@@ -1,6 +1,7 @@
 from pathlib import Path
 import json
 import pickle
+import math
 import os
 from nltk.stem import PorterStemmer
 import string
@@ -128,6 +129,19 @@ class InvertedIndex:
 
         else:
             return freq_in_doc
+
+    def get_bm25_idf(self, term: str) -> float:
+        term = remove_punctuation(term)
+        term = term.split()
+        term = filter_stopwords_stemming(term)
+        term = term[0]
+
+        N = len(self.docmap)
+        df = len(set(self.index[term]))
+
+        bm25_idf = math.log((N - df + 0.5) / (df + 0.5) + 1)
+
+        print(f"BM25 IDF score of '{term}': {bm25_idf:.2f}")
 
 
 

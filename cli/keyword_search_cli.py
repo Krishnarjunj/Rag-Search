@@ -40,6 +40,9 @@ def filter_stopwords_stemming(input_list, stop_words):
             input_list[i] = stemmer.stem(input_list[i])
         return input_list
 
+def bm25_idf_command(term, Obj):
+    bm25idf = Obj.get_bm25_idf(term)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
@@ -64,6 +67,10 @@ def main() -> None:
     tfidf_parser = subparsers.add_parser("tfidf")
     tfidf_parser.add_argument("docid", type=int)
     tfidf_parser.add_argument("term", type=str)
+
+    #bm25idf
+    bmdidf_parser = subparsers.add_parser("bm25idf")
+    bmdidf_parser.add_argument("term", type=str)
 
     # Make the object
     Obj = InvertedIndex()
@@ -129,6 +136,12 @@ def main() -> None:
             docid = args.docid
             term = args.term
             Obj.load()
+
+        case "bm25idf":
+            Obj.load()
+            term = args.term
+            bm25_idf_command(term, Obj)
+            return
 
 
         case _:
