@@ -8,6 +8,8 @@ from nltk.stem import PorterStemmer
 from Inverted_Index import InvertedIndex
 import math
 
+BM25_K1 = 1.5
+
 def filter_stopwords_stemming(input_list, stop_words):
     stemmer = PorterStemmer()
 
@@ -43,6 +45,11 @@ def filter_stopwords_stemming(input_list, stop_words):
 def bm25_idf_command(term, Obj):
     bm25idf = Obj.get_bm25_idf(term)
 
+def bm25_tf_command(doc_id, term, k1, Obj):
+    res = Obj.get_bm25_tf(doc_id, term, k1)
+    return res
+
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
@@ -71,6 +78,13 @@ def main() -> None:
     #bm25idf
     bmdidf_parser = subparsers.add_parser("bm25idf")
     bmdidf_parser.add_argument("term", type=str)
+
+    #bm25tf
+    bm25tf_parser = subparsers.add_parser("bm25tf")
+    bm25tf_parser.add_argument("doc_id", type=int)
+    bm25tf_parser.add_argument("term", type=str)
+    bm25tf_parser.add_argument("k1", type=float, default = BM25_K1, nargs = '?')
+
 
     # Make the object
     Obj = InvertedIndex()
@@ -141,6 +155,17 @@ def main() -> None:
             Obj.load()
             term = args.term
             bm25_idf_command(term, Obj)
+            return
+
+        case "bm25tf":
+            Obj.load()
+            term = args.term
+            doc_id = args.doc_id
+            k1 = args.k1
+
+            bm25tf = bm25_tf_command(doc_id, term, k1, Obj)
+
+            print(f"BM25 TF score of '{args.term}' in document '{args.doc_id}': {bm25tf:.2f}")
             return
 
 

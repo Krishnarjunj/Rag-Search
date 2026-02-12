@@ -8,6 +8,8 @@ import string
 from collections import defaultdict
 from collections import Counter
 
+BM25_K1 = 1.5
+
 def remove_punctuation(input_string):
     # Removing punctuations
     Punctuations = string.punctuation
@@ -142,6 +144,18 @@ class InvertedIndex:
         bm25_idf = math.log((N - df + 0.5) / (df + 0.5) + 1)
 
         print(f"BM25 IDF score of '{term}': {bm25_idf:.2f}")
+
+    def get_bm25_tf(self, doc_id, term, k1=BM25_K1):
+        tf = self.get_tf(doc_id, term)
+
+        term = remove_punctuation(term)
+        term = term.split()
+        term = filter_stopwords_stemming(term)
+        term = term[0]
+
+        bm25_tf = (tf * (k1 + 1)) / (tf + k1)
+
+        return bm25_tf
 
 
 
