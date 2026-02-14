@@ -9,6 +9,7 @@ from Inverted_Index import InvertedIndex
 import math
 
 BM25_K1 = 1.5
+BM25_b = 0.75
 
 def filter_stopwords_stemming(input_list, stop_words):
     stemmer = PorterStemmer()
@@ -84,6 +85,12 @@ def main() -> None:
     bm25tf_parser.add_argument("doc_id", type=int)
     bm25tf_parser.add_argument("term", type=str)
     bm25tf_parser.add_argument("k1", type=float, default = BM25_K1, nargs = '?')
+    bm25tf_parser.add_argument("b", type=float, default = BM25_b, nargs = '?')
+
+    #bm25
+    bm25search_parser = subparsers.add_parser("bm25search")
+    bm25search_parser.add_argument("query", type=str)
+    bm25search_parser.add_argument("limit", type=int, default = 5, nargs='?')
 
 
     # Make the object
@@ -166,6 +173,14 @@ def main() -> None:
             bm25tf = bm25_tf_command(doc_id, term, k1, Obj)
 
             print(f"BM25 TF score of '{args.term}' in document '{args.doc_id}': {bm25tf:.2f}")
+            return
+
+        case "bm25search":
+            Obj.load()
+            query = args.query
+            limit = args.limit
+
+            Obj.bm25_search(query, limit)
             return
 
 

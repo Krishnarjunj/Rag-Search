@@ -9,6 +9,7 @@ from collections import defaultdict
 from collections import Counter
 
 BM25_K1 = 1.5
+BM25_b = 0.75
 
 def remove_punctuation(input_string):
     # Removing punctuations
@@ -60,9 +61,11 @@ class InvertedIndex:
         self.index = defaultdict(list)
         self.docmap = {}
         self.term_frequencies = {}
+        self.doc_lengths = {}
 
     def __add_document(self, doc_id, text):
         tokenized_text = text.split()
+        self.doc_lengths[doc_id] = len(tokenized_text)
         c = Counter(tokenized_text)
         for token in tokenized_text:
             self.index[token.lower()].append(doc_id)
@@ -89,6 +92,7 @@ class InvertedIndex:
         file_path_index = Path("~/Krish/RAG/rag-search-engine/cache/index.pkl").expanduser()
         file_path_docmap = Path("~/Krish/RAG/rag-search-engine/cache/docmap.pkl").expanduser()
         file_path_freq = Path("~/Krish/RAG/rag-search-engine/cache/term_frequencies.pkl").expanduser()
+        file_path_doclen = Path("~/Krish/RAG/rag-search-engine/cache/doc_lenghts.pkl").expanduser()
 
         with open(file_path_index, 'wb') as f:
             pickle.dump(self.index, f)
@@ -99,10 +103,14 @@ class InvertedIndex:
         with open(file_path_freq, "wb") as f:
             pickle.dump(self.term_frequencies, f)
 
+        with open(file_path_doclen, "wb") as f:
+            pickle.dump(self.doc_lengths, f)
+
     def load(self):
         file_path_index = Path("~/Krish/RAG/rag-search-engine/cache/index.pkl").expanduser()
         file_path_docmap = Path("~/Krish/RAG/rag-search-engine/cache/docmap.pkl").expanduser()
         file_path_freq = Path("~/Krish/RAG/rag-search-engine/cache/term_frequencies.pkl").expanduser()
+        file_path_doclen = Path("~/Krish/RAG/rag-search-engine/cache/doc_lenghts.pkl").expanduser()
 
         with open(file_path_index, "rb") as f:
             self.index = pickle.load(f)
@@ -115,6 +123,9 @@ class InvertedIndex:
         with open(file_path_freq, "rb") as f:
             self.term_frequencies = pickle.load(f)
             # print("loading term_frequencies")
+
+        with open(file_path_doclen, "rb") as f:
+            self.doc_lengths = pickle.load(f)
 
     def get_tf(self, doc_id, term):
         term = remove_punctuation(term)
@@ -143,9 +154,11 @@ class InvertedIndex:
 
         bm25_idf = math.log((N - df + 0.5) / (df + 0.5) + 1)
 
-        print(f"BM25 IDF score of '{term}': {bm25_idf:.2f}")
+        return bm25_idf
 
-    def get_bm25_tf(self, doc_id, term, k1=BM25_K1):
+        #print(f"BM25 IDF score of '{term}': {bm25_idf:.2f}")
+
+    def get_bm25_tf(self, doc_id, term, k1=BM25_K1, b=BM25_b):
         tf = self.get_tf(doc_id, term)
 
         term = remove_punctuation(term)
@@ -153,9 +166,54 @@ class InvertedIndex:
         term = filter_stopwords_stemming(term)
         term = term[0]
 
-        bm25_tf = (tf * (k1 + 1)) / (tf + k1)
+        avg = self.__get_avg_doc_length()
+        length_norm = 1 - b + b * (self.doc_lengths[doc_id] / avg)
+
+        bm25_tf = (tf * (k1 + 1)) / (tf + k1 * length_norm)
 
         return bm25_tf
+
+    def __get_avg_doc_length(self) ->float:
+        N = len(self.docmap)
+        Total = 0
+        for i,j in self.doc_lengths.items():
+            Total += j
+        avg = Total / N
+        return avg
+
+    def bm25(self, doc_id, term):
+        bm25_tf = self.get_bm25_tf(doc_id, term)
+        bm25_idf = self.get_bm25_idf(term)
+
+        BM25_Score = bm25_tf * bm25_idf
+
+        return BM25_Score
+
+    def bm25_search(self, query, limit):
+        term = remove_punctuation(query)
+        term = term.split()
+        term = filter_stopwords_stemming(term)
+        scores = {}
+
+        for i in self.docmap:
+            total = 0
+            for token in term:
+                bm_score = self.bm25(i, token)
+                total += bm_score
+            scores[i] = total
+
+        sorted_scores = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+
+        for rank, (doc_id, score) in enumerate(sorted_scores[:limit], start = 1):
+            title = self.docmap[doc_id]["title"]
+            print(f"{rank}. ({doc_id}) {title} - Score: {score:.2f}")
+
+
+
+
+
+
+
 
 
 
