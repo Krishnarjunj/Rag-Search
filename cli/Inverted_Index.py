@@ -12,49 +12,28 @@ BM25_K1 = 1.5
 BM25_b = 0.75
 
 def remove_punctuation(input_string):
-    # Removing punctuations
-    Punctuations = string.punctuation
-    table = str.maketrans("", "", Punctuations)
-    input_string = input_string.translate(table)
-    return input_string
+    table = str.maketrans("", "", string.punctuation)
+    return input_string.translate(table)
 
 def filter_stopwords_stemming(input_list):
     path_stop_words = Path("~/Krish/RAG/rag-search-engine/data/stopwords.txt").expanduser()
     with open(path_stop_words, "r") as f:
-        data = f.read()
-    stop_words = data.splitlines()
+        stop_words = set(f.read().splitlines())
 
     stemmer = PorterStemmer()
 
+    # Ensure we are working with a list of tokens
     if isinstance(input_list, str):
-        input_list = input_list.split()
-
-        # removing stop words
-        for word in input_list:
-            if word in stop_words:
-                input_list.remove(word)
-        # stemming
-        for i in range(len(input_list)):
-            input_list[i] = stemmer.stem(input_list[i])
-
-        res_str = ""
-        for word in input_list:
-            res_str += word
-            res_str += " "
-        res_str = res_str.rstrip()
-
-        return res_str
-
+        tokens = input_list.split()
     else:
-        # removing stop words
-        for word in input_list:
-            if word in stop_words:
-                input_list.remove(word)
-        # stemming
-        for i in range(len(input_list)):
-            input_list[i] = stemmer.stem(input_list[i])
-        return input_list
+        tokens = input_list
 
+    # Fix: Use list comprehension to avoid skipping words during iteration
+    cleaned_tokens = [stemmer.stem(word) for word in tokens if word not in stop_words]
+
+    if isinstance(input_list, str):
+        return " ".join(cleaned_tokens)
+    return cleaned_tokens
 
 class InvertedIndex:
     def __init__ (self):
@@ -63,30 +42,92 @@ class InvertedIndex:
         self.term_frequencies = {}
         self.doc_lengths = {}
 
-    def __add_document(self, doc_id, text):
-        tokenized_text = text.split()
-        self.doc_lengths[doc_id] = len(tokenized_text)
-        c = Counter(tokenized_text)
-        for token in tokenized_text:
+    def __add_document(self, doc_id, processed_text_str):
+        # We split the already processed string to ensure lengths match the Counter
+        tokens = processed_text_str.split()
+        self.doc_lengths[doc_id] = len(tokens)
+        
+        counts = Counter(tokens)
+        for token in counts.keys():
+            # Using doc_id as provided (ensure types are consistent)
             self.index[token.lower()].append(doc_id)
-        tokenized_str = ' '.join(tokenized_text)
-        self.term_frequencies[int(doc_id)] = c
-
-    def get_documents(self, term):
-        res_list = []
-        res_list = self.index[term]
-        return sorted(res_list)
+        
+        self.term_frequencies[doc_id] = counts
 
     def build(self):
         file_path_json = Path("~/Krish/RAG/rag-search-engine/data/movies.json").expanduser()
         with open(file_path_json, 'r') as f:
             data_json = json.load(f)
+            
         for items in data_json["movies"]:
-            term = f"{items['title']} {items['description']}"
-            term = remove_punctuation(term)
-            term = filter_stopwords_stemming(term)
-            self.__add_document(items["id"], term)
-            self.docmap[items["id"]] = items
+            doc_id = items["id"]
+            combined_text = f"{items['title']} {items['description']}"
+            
+            # Standardize processing pipeline
+            clean_text = remove_punctuation(combined_text).lower()
+            processed_str = filter_stopwords_stemming(clean_text)
+            
+            self.__add_document(doc_id, processed_str)
+            self.docmap[doc_id] = items
+
+    def get_tf(self, doc_id, term):
+        # Process the single query term the same way as indexing
+        clean_term = remove_punctuation(term).lower()
+        processed_tokens = filter_stopwords_stemming(clean_term)
+        
+        # filter_stopwords_stemming returns a string if input was string
+        target = processed_tokens.split()[0] if processed_tokens else ""
+        
+        # Ensure doc_id lookup matches the type stored (int vs str)
+        doc_freqs = self.term_frequencies.get(doc_id, {})
+        return doc_freqs.get(target, 0)
+
+    def get_bm25_idf(self, term: str) -> float:
+        clean_term = remove_punctuation(term).lower()
+        processed = filter_stopwords_stemming(clean_term).split()
+        if not processed: return 0.0
+        target = processed[0]
+
+        N = len(self.docmap)
+        # DF is the number of documents containing the term
+        df = len(set(self.index.get(target, [])))
+
+        # Standard BM25 IDF formula
+        return math.log((N - df + 0.5) / (df + 0.5) + 1)
+
+    def get_bm25_tf(self, doc_id, term, k1=BM25_K1, b=BM25_b):
+        tf = self.get_tf(doc_id, term)
+        if tf == 0: return 0.0
+
+        avg_dl = sum(self.doc_lengths.values()) / len(self.docmap)
+        doc_len = self.doc_lengths.get(doc_id, 0)
+        
+        # Length normalization component
+        L_d = 1 - b + b * (doc_len / avg_dl)
+        
+        return (tf * (k1 + 1)) / (tf + k1 * L_d)
+
+    def bm25_search(self, query, limit):
+        # Process query into tokens
+        clean_query = remove_punctuation(query).lower()
+        query_tokens = filter_stopwords_stemming(clean_query).split()
+        
+        scores = Counter()
+        for doc_id in self.docmap:
+            total_score = 0
+            for token in query_tokens:
+                # Calculate score per token
+                idf = self.get_bm25_idf(token)
+                tf_score = self.get_bm25_tf(doc_id, token)
+                total_score += (idf * tf_score)
+            if total_score > 0:
+                scores[doc_id] = total_score
+
+        sorted_scores = scores.most_common(limit)
+
+        for rank, (doc_id, score) in enumerate(sorted_scores, start=1):
+            title = self.docmap[doc_id]["title"]
+            print(f"{rank}. ({doc_id}) {title} - Score: {score:.2f}")
 
     def save(self):
         file_path_index = Path("~/Krish/RAG/rag-search-engine/cache/index.pkl").expanduser()
@@ -126,87 +167,6 @@ class InvertedIndex:
 
         with open(file_path_doclen, "rb") as f:
             self.doc_lengths = pickle.load(f)
-
-    def get_tf(self, doc_id, term):
-        term = remove_punctuation(term)
-        term = term.split()
-        term = filter_stopwords_stemming(term)
-
-        if len(term) > 1:
-            raise Exception("Length of term more than one")
-
-        freq_in_doc = self.term_frequencies[doc_id].get(term[0], 0)
-
-        if freq_in_doc == 0:
-            return 0
-
-        else:
-            return freq_in_doc
-
-    def get_bm25_idf(self, term: str) -> float:
-        term = remove_punctuation(term)
-        term = term.split()
-        term = filter_stopwords_stemming(term)
-        term = term[0]
-
-        N = len(self.docmap)
-        df = len(set(self.index[term]))
-
-        bm25_idf = math.log((N - df + 0.5) / (df + 0.5) + 1)
-
-        return bm25_idf
-
-        #print(f"BM25 IDF score of '{term}': {bm25_idf:.2f}")
-
-    def get_bm25_tf(self, doc_id, term, k1=BM25_K1, b=BM25_b):
-        tf = self.get_tf(doc_id, term)
-
-        term = remove_punctuation(term)
-        term = term.split()
-        term = filter_stopwords_stemming(term)
-        term = term[0]
-
-        avg = self.__get_avg_doc_length()
-        length_norm = 1 - b + b * (self.doc_lengths[doc_id] / avg)
-
-        bm25_tf = (tf * (k1 + 1)) / (tf + k1 * length_norm)
-
-        return bm25_tf
-
-    def __get_avg_doc_length(self) ->float:
-        N = len(self.docmap)
-        Total = 0
-        for i,j in self.doc_lengths.items():
-            Total += j
-        avg = Total / N
-        return avg
-
-    def bm25(self, doc_id, term):
-        bm25_tf = self.get_bm25_tf(doc_id, term)
-        bm25_idf = self.get_bm25_idf(term)
-
-        BM25_Score = bm25_tf * bm25_idf
-
-        return BM25_Score
-
-    def bm25_search(self, query, limit):
-        term = remove_punctuation(query)
-        term = term.split()
-        term = filter_stopwords_stemming(term)
-        scores = {}
-
-        for i in self.docmap:
-            total = 0
-            for token in term:
-                bm_score = self.bm25(i, token)
-                total += bm_score
-            scores[i] = total
-
-        sorted_scores = sorted(scores.items(), key=lambda item: item[1], reverse=True)
-
-        for rank, (doc_id, score) in enumerate(sorted_scores[:limit], start = 1):
-            title = self.docmap[doc_id]["title"]
-            print(f"{rank}. ({doc_id}) {title} - Score: {score:.2f}")
 
 
 
