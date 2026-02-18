@@ -33,11 +33,11 @@ def filter_stopwords_stemming(input_list, stop_words):
         # Case: Input is already a list (processing tokens)
         # Fix: Use list comprehension to avoid skipping elements during removal
         input_list = [word for word in input_list if word not in stop_words]
-        
+
         # Apply stemming
         for i in range(len(input_list)):
             input_list[i] = stemmer.stem(input_list[i])
-            
+
         return input_list
 
 def bm25_idf_command(term, Obj):
@@ -132,11 +132,11 @@ def main() -> None:
         case "idf":
             term = args.term.translate(table)
             term = str(filter_stopwords_stemming(term, stop_words))
-            
+
             Obj.load()
             term_match_doc_count = len(set(Obj.index[term]))
             total_doc_count = len(Obj.docmap)
-            
+
             idf = math.log((total_doc_count + 1) / (term_match_doc_count + 1))
             print(f"Inverse document frequency of '{term}': {idf:.2f}")
             return
