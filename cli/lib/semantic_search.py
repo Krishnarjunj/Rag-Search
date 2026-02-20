@@ -1,9 +1,13 @@
 from sentence_transformers import SentenceTransformer
+import numpy as np
 
 class SemanticSearch:
 
     def __init__(self):
         self.model = SentenceTransformer("all-MiniLM-L6-v2")
+        self.embeddings = None
+        self.documents = None
+        self.document_map = {}
 
     def generate_embedding(self, text):
         if text.strip("") == "":
@@ -16,6 +20,12 @@ class SemanticSearch:
             encoded_list = self.model.encode(input_list)
 
             return encoded_list[0]
+
+    def build_embeddings(self, documents):
+        self.documents = documents
+        self.document_map[self.documents["id"]] = self.documents
+        term = f"{documents["title"]}: {documents["description"]}"
+
 
 
 def embed_text(text):
