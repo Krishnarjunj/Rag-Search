@@ -43,20 +43,15 @@ The core pipeline is:
 
 ```mermaid
 flowchart TD
-  A[movies.json] --> B[Combine title + description]
-  B --> C[Normalize text
-lowercase, remove punctuation,
-remove stopwords, stem]
-  C --> D[Inverted index
-term -> doc_ids]
-  C --> E[Term frequencies
-(doc_id -> Counter)]
-  C --> F[Doc lengths
-(doc_id -> len)]
-  D --> G[cache/index.pkl]
-  E --> H[cache/term_frequencies.pkl]
-  F --> I[cache/doc_lenghts.pkl]
-  J[doc metadata] --> K[cache/docmap.pkl]
+  A["movies.json"] --> B["Combine title + description"]
+  B --> C["Normalize text<br/>lowercase, remove punctuation,<br/>remove stopwords, stem"]
+  C --> D["Inverted index<br/>term -> doc_ids"]
+  C --> E["Term frequencies<br/>doc_id -> Counter"]
+  C --> F["Doc lengths<br/>doc_id -> len"]
+  D --> G["cache/index.pkl"]
+  E --> H["cache/term_frequencies.pkl"]
+  F --> I["cache/doc_lenghts.pkl"]
+  J["doc metadata"] --> K["cache/docmap.pkl"]
 ```
 
 ## CLI Commands (Routes)
