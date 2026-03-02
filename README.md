@@ -1,8 +1,8 @@
-# RAG Search Engine (BM25 + TF-IDF Keyword Search)
+# RAG Search Engine (BM25 + TF-IDF + Semantic Search)
 
-This repo implements a compact keyword search engine over a movie dataset. It builds an inverted index, stores per-document term frequencies, computes TF-IDF and BM25 scores, and exposes these operations via a CLI.
+This repo implements a compact search engine over a movie dataset. It includes classic keyword retrieval (inverted index, TF-IDF, BM25) and a semantic search path that embeds each movie and compares a query by cosine similarity. Both are exposed via small CLIs so you can trace every step.
 
-The project is designed for learning and experimentation with classic IR (information retrieval) algorithms.
+The project is designed for learning and experimentation with IR (information retrieval) algorithms, from symbolic term matching to dense vector retrieval.
 
 ## Quick Start
 
@@ -28,9 +28,22 @@ python3 cli/keyword_search_cli.py bm25idf matrix
 python3 cli/keyword_search_cli.py bm25tf 12 matrix 1.5 0.75
 ```
 
+4. Build or verify semantic embeddings.
+
+```bash
+python3 cli/semantic_search_cli.py verify
+python3 cli/semantic_search_cli.py verify_embeddings
+```
+
+5. Run semantic search.
+
+```bash
+python3 cli/semantic_search_cli.py search "dream within a dream" --limit 5
+```
+
 ## Data Flow Overview
 
-The core pipeline is:
+The keyword pipeline is:
 
 1. Load movies from `data/movies.json`.
 2. Combine title + description per movie.
@@ -54,9 +67,28 @@ flowchart TD
   J["doc metadata"] --> K["cache/docmap.pkl"]
 ```
 
+The semantic pipeline is:
+
+1. Load movies from `data/movies.json`.
+2. Combine title + description per movie.
+3. Encode each movie with a sentence-transformer model.
+4. Save the embedding matrix to `cache/movie_embeddings.npy`.
+5. Embed the query and compute cosine similarity against all movie vectors.
+
+```mermaid
+flowchart TD
+  A["movies.json"] --> B["Combine title + description"]
+  B --> C["SentenceTransformer encode"]
+  C --> D["cache/movie_embeddings.npy"]
+  Q["query text"] --> E["SentenceTransformer encode"]
+  E --> F["Cosine similarity vs all docs"]
+  F --> G["Sort by score"]
+  G --> H["Top K results"]
+```
+
 ## CLI Commands (Routes)
 
-The CLI is `cli/keyword_search_cli.py`. Commands:
+The keyword CLI is `cli/keyword_search_cli.py`. Commands:
 
 1. `build`
    - Builds and writes the caches from the dataset.
@@ -87,6 +119,24 @@ The CLI is `cli/keyword_search_cli.py`. Commands:
 
 8. `bm25search <query> [limit]`
    - Runs BM25 search and prints top results.
+   - Default `limit=5`.
+
+The semantic CLI is `cli/semantic_search_cli.py`. Commands:
+
+1. `verify`
+   - Loads the embedding model and prints basic model info.
+
+2. `embed_text <text>`
+   - Encodes the text and prints a short slice of the vector.
+
+3. `verify_embeddings`
+   - Loads or builds embeddings and prints the matrix shape.
+
+4. `embedquery <query>`
+   - Encodes the query and prints a short slice of the vector.
+
+5. `search <query> --limit <k>`
+   - Loads or builds embeddings, embeds the query, and prints top results by cosine similarity.
    - Default `limit=5`.
 
 ## Text Normalization Pipeline
@@ -203,6 +253,32 @@ flowchart TD
   H --> I[Top K results]
 ```
 
+## Semantic Search (Embeddings + Cosine Similarity)
+
+Think of each movie description as a short paragraph in a library. Keyword search works like a literal index at the back of a book: if the exact term appears, you can find the page. Semantic search tries to answer a different question: *“Which pages talk about the same idea, even if they don’t share the same words?”*
+
+To do that, each movie is converted into a vector (an embedding) using a pretrained sentence-transformer model. The query becomes another vector in the same space. If two vectors point in similar directions, their meanings are close; if they point in different directions, the meanings drift apart.
+
+The project computes similarity with cosine similarity:
+
+```
+cosine(vec_q, vec_d) = (vec_q · vec_d) / (||vec_q|| * ||vec_d||)
+```
+
+Higher cosine scores mean the query and the document are closer in meaning. Results are sorted by this score, and the top K are returned.
+
+## Semantic Search Workflow
+
+```mermaid
+flowchart TD
+  A[Query] --> B[Embed with SentenceTransformer]
+  C[All movie docs] --> D[Embed or load cache]
+  B --> E[Cosine similarity]
+  D --> E
+  E --> F[Sort by score]
+  F --> G[Top K results]
+```
+
 ## Files and Modules
 
 - `cli/keyword_search_cli.py`:
@@ -213,6 +289,12 @@ flowchart TD
   - Core index builder and BM25 functions.
   - Loads/saves cache files.
 
+- `cli/semantic_search_cli.py`:
+  - CLI entry point for semantic search commands.
+
+- `cli/lib/semantic_search.py`:
+  - Sentence-transformer embedding builder and cosine similarity search.
+
 - `data/movies.json`:
   - Movie dataset (title, description, id, etc.).
 
@@ -221,6 +303,7 @@ flowchart TD
 
 - `cache/`:
   - `index.pkl`, `docmap.pkl`, `term_frequencies.pkl`, `doc_lenghts.pkl`.
+  - `movie_embeddings.npy` (semantic embedding matrix).
 
 ## Observed Inconsistencies / Mistakes
 
@@ -236,3 +319,6 @@ flowchart TD
 10. `bm25_idf_command` wrapper computes value and discards it.
 11. Some unused variables exist (e.g., `clean_query` in `tfidf` path).
 12. `cli/Old_*.py` files are present and may cause confusion about which implementation is active.
+13. `cli/lib/semantic_search.py` uses an f-string with nested double quotes (`document["title"]`), which raises a syntax error in `search`.
+14. Semantic search uses hardcoded absolute paths (`~/Krish/RAG/rag-search-engine/...`), which reduces portability.
+15. `search` in `semantic_search_cli.py` prints strings that already include `\n`, resulting in extra blank lines.
