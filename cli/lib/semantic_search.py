@@ -14,7 +14,7 @@ class SemanticSearch:
         if text.strip()=="":
             raise ValueError
 
-        # input_list = text.strip().split(" ")
+        text = text.strip()
 
         output_list = self.model.encode([text])
 
@@ -55,6 +55,29 @@ class SemanticSearch:
                 print("Cache corrupted")
         return self.build_embeddings(documents)
 
+    def search(self, query, limit):
+        if self.embeddings is None or self.documents is None:
+            raise ValueError("No embeddings loaded. Call `load_or_create_embeddings` first.")
+
+        query_embedding = self.generate_embeddings(query)
+
+        results = []
+
+        for idx, doc_embedding in enumerate(self.embeddings):
+            similarity = cosine_similarity(query_embedding, doc_embedding)
+            document = self.documents[idx]
+
+            results.append((similarity, document))
+
+        results.sort(key=lambda x: x[0], reverse=True)
+
+        top_results = []
+
+        for score, document in results[:limit]:
+            top_results.append(f"{document["title"]} (score: {float(score)})\n")
+
+        return top_results
+
 
 def verify_embeddings():
     Obj = SemanticSearch()
@@ -77,3 +100,21 @@ def embed_text(text):
     print(f"Text: {text}")
     print(f"First 3 dimensions: {embedding[:3]}")
     print(f"Dimensions: {embedding.shape[0]}")
+
+def embed_query_text(query):
+    Obj = SemanticSearch()
+    embedding = Obj.generate_embeddings(query)
+
+    print(f"Query: {query}")
+    print(f"First 5 dimensions: {embedding[:5]}")
+    print(f"Shape: {embedding.shape}")
+
+def cosine_similarity(vec1, vec2):
+    dot_product = np.dot(vec1, vec2)
+    norm1 = np.linalg.norm(vec1)
+    norm2 = np.linalg.norm(vec2)
+
+    if norm1 == 0 or norm2 == 0:
+        return 0.0
+
+    return dot_product / (norm1 * norm2)
