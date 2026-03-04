@@ -28,6 +28,11 @@ def main():
     search_parser.add_argument("query", type=str)
     search_parser.add_argument("--limit", type=int, default=5, nargs='?')
 
+    # Command chunk
+    chunk_parser = subparsers.add_parser("chunk")
+    chunk_parser.add_argument("query", type=str)
+    chunk_parser.add_argument("--chunk-size", type=int, default=200, nargs='?')
+
     args = parser.parse_args()
 
     match args.command:
@@ -63,6 +68,21 @@ def main():
             for i in results:
                 print(i)
 
+        case "chunk":
+            text = args.query
+            chunk_size = args.chunk_size
+
+            words = text.split()
+
+            chunks = []
+            for i in range(0, len(words), chunk_size):
+                chunk = " ".join(words[i:i + chunk_size])
+                chunks.append(chunk)
+
+            print(f"Chunking {len(text)} characters")
+
+            for i, chunk in enumerate(chunks, start=1):
+                print(f"{i}. {chunk}")
 
         case _:
             parser.print_help()
