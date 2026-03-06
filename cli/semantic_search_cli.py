@@ -4,6 +4,7 @@ import argparse
 from lib.semantic_search import verify_model, embed_text, verify_embeddings, embed_query_text, SemanticSearch
 from pathlib import Path
 import json
+import re
 
 def main():
     parser = argparse.ArgumentParser(description="Semantic Search CLI")
@@ -32,6 +33,13 @@ def main():
     chunk_parser = subparsers.add_parser("chunk")
     chunk_parser.add_argument("query", type=str)
     chunk_parser.add_argument("--chunk-size", type=int, default=200, nargs='?')
+    chunk_parser.add_argument("--overlap", type=int)
+
+    # Command semantic chunk
+    semantic_chunk_parser = subparsers.add_parser("semantic_chunk")
+    semantic_chunk_parser.add_argument("query", type=str)
+    semantic_chunk_parser.add_argument("--max-chunk-size", type=int, default=4, nargs='?')
+    semantic_chunk_parser.add_argument("--overlap", type=int, default=0, nargs='?')
 
     args = parser.parse_args()
 
@@ -71,15 +79,37 @@ def main():
         case "chunk":
             text = args.query
             chunk_size = args.chunk_size
+            overlap = args.overlap
 
             words = text.split()
 
             chunks = []
-            for i in range(0, len(words), chunk_size):
+            step = chunk_size - overlap if overlap > 0 else chunk_size
+
+            for i in range(0, len(words), step):
                 chunk = " ".join(words[i:i + chunk_size])
                 chunks.append(chunk)
 
             print(f"Chunking {len(text)} characters")
+
+            for i, chunk in enumerate(chunks, start=1):
+                print(f"{i}. {chunk}")
+
+        case "semantic_chunk":
+            text = args.query
+            chunk_size = args.max_chunk_size
+            overlap = args.overlap
+
+            sentences = re.split("(?<=[.!?])\s+", text)
+
+            chunks = []
+            step = chunk_size - overlap if overlap > 0 else chunk_size
+
+            for i in range(0, len(sentences), step):
+                chunk = " ".join(sentences[i:i + chunk_size])
+                chunks.append(chunk)
+
+            print(f"Semantically chunking {len(text)} characters")
 
             for i, chunk in enumerate(chunks, start=1):
                 print(f"{i}. {chunk}")
