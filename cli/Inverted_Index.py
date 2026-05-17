@@ -107,7 +107,7 @@ class InvertedIndex:
         
         return (tf * (k1 + 1)) / (tf + k1 * L_d)
 
-    def bm25_search(self, query, limit):
+    def bm25_search(self, query, limit, print_results=True):
         # Process query into tokens
         clean_query = remove_punctuation(query).lower()
         query_tokens = filter_stopwords_stemming(clean_query).split()
@@ -125,9 +125,24 @@ class InvertedIndex:
 
         sorted_scores = scores.most_common(limit)
 
+        results = []
+
         for rank, (doc_id, score) in enumerate(sorted_scores, start=1):
-            title = self.docmap[doc_id]["title"]
-            print(f"{rank}. ({doc_id}) {title} - Score: {score:.2f}")
+            document = self.docmap[doc_id]
+            title = document["title"]
+            if print_results:
+                print(f"{rank}. ({doc_id}) {title} - Score: {score:.2f}")
+            results.append(
+                {
+                    "id": doc_id,
+                    "title": title,
+                    "document": document.get("description", ""),
+                    "score": float(score),
+                    "metadata": document.get("metadata", {}),
+                }
+            )
+
+        return results
 
     def save(self):
         file_path_index = Path("~/Krish/RAG/rag-search-engine/cache/index.pkl").expanduser()
@@ -167,8 +182,6 @@ class InvertedIndex:
 
         with open(file_path_doclen, "rb") as f:
             self.doc_lengths = pickle.load(f)
-
-
 
 
 
