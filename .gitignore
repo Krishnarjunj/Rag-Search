@@ -9,3 +9,4 @@ wheels/
 /cache/
 # Virtual environments
 .venv
+.env

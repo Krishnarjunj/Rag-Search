@@ -1,324 +1,272 @@
-# RAG Search Engine (BM25 + TF-IDF + Semantic Search)
+# RAG Search Engine
 
-This repo implements a compact search engine over a movie dataset. It includes classic keyword retrieval (inverted index, TF-IDF, BM25) and a semantic search path that embeds each movie and compares a query by cosine similarity. Both are exposed via small CLIs so you can trace every step.
+Small movie-search project that combines:
 
-The project is designed for learning and experimentation with IR (information retrieval) algorithms, from symbolic term matching to dense vector retrieval.
+- BM25 keyword retrieval
+- Sentence-transformer semantic retrieval
+- Hybrid fusion over both ranking strategies
+- Optional Gemini-based query spelling correction for hybrid search
+
+The codebase is organized as standalone Python CLIs rather than a packaged library. The current primary workflow is `cli/hybrid_search_cli.py`.
+
+## Current Capabilities
+
+- Build and reuse a cached BM25 index from `data/movies.json`
+- Build and reuse full-document semantic embeddings
+- Build and reuse chunked semantic embeddings
+- Run BM25-only search
+- Run semantic-only search
+- Run hybrid search with either weighted score fusion or Reciprocal Rank Fusion (RRF)
+- Optionally fix obvious spelling mistakes in a query before hybrid search
+
+## Repository Layout
+
+```text
+.
+├── cli/
+│   ├── hybrid_search.py
+│   ├── hybrid_search_cli.py
+│   ├── keyword_search_cli.py
+│   ├── semantic_search_cli.py
+│   ├── Inverted_Index.py
+│   └── lib/
+│       ├── semantic_search.py
+│       └── chunked_semantic_search.py
+├── data/
+│   ├── movies.json
+│   └── stopwords.txt
+├── cache/
+├── pyproject.toml
+└── README.md
+```
+
+Legacy files such as `cli/Old_keyword_search_cli.py` and `cli/Old_Inverted_Index.py` are kept in the repo but are not the current entry points.
+
+## Requirements
+
+- Python `>=3.13`
+- `uv` recommended for dependency management
+
+Dependencies are declared in [pyproject.toml](/home/krish/Krish/RAG/rag-search-engine/pyproject.toml).
+
+## Setup
+
+Install dependencies:
+
+```bash
+uv sync
+```
+
+Optional environment variables:
+
+- `GEMINI_API_KEY`: enables query spelling correction in hybrid RRF search
+- `GEMMA_MODEL`: overrides the model used for spelling correction in `cli/hybrid_search_cli.py`
+- `GEMINI_MODEL`: used by `test_gemini.py`
 
 ## Quick Start
 
-1. Build the index cache.
+Build the BM25 cache:
 
 ```bash
-python3 cli/keyword_search_cli.py build
+uv run python cli/keyword_search_cli.py build
 ```
 
-2. Run BM25 search.
+Run BM25 search:
 
 ```bash
-python3 cli/keyword_search_cli.py bm25search "dream within a dream" 5
+uv run python cli/keyword_search_cli.py bm25search "dream within a dream" 5
 ```
 
-3. Compute term statistics.
+Run chunked semantic search:
 
 ```bash
-python3 cli/keyword_search_cli.py tf 12 matrix
-python3 cli/keyword_search_cli.py idf matrix
-python3 cli/keyword_search_cli.py tfidf 12 matrix
-python3 cli/keyword_search_cli.py bm25idf matrix
-python3 cli/keyword_search_cli.py bm25tf 12 matrix 1.5 0.75
+uv run python cli/semantic_search_cli.py search_chunked "dream within a dream" --limit 5
 ```
 
-4. Build or verify semantic embeddings.
+Run hybrid RRF search:
 
 ```bash
-python3 cli/semantic_search_cli.py verify
-python3 cli/semantic_search_cli.py verify_embeddings
+uv run python cli/hybrid_search_cli.py rrf-search "dream within a dream" --limit 5
 ```
 
-5. Run semantic search.
+Run hybrid weighted search:
 
 ```bash
-python3 cli/semantic_search_cli.py search "dream within a dream" --limit 5
+uv run python cli/hybrid_search_cli.py weighted-search "dream within a dream" --alpha 0.5 --limit 5
 ```
 
-## Data Flow Overview
+Run hybrid RRF search with optional spell correction:
 
-The keyword pipeline is:
-
-1. Load movies from `data/movies.json`.
-2. Combine title + description per movie.
-3. Normalize text: lowercase, remove punctuation, remove stopwords, apply Porter stemming.
-4. Build:
-   - Inverted index (`term -> [doc_id, ...]`)
-   - Per-document term frequencies (`doc_id -> Counter(term)`)
-   - Document lengths (`doc_id -> length`)
-5. Save caches to `cache/`.
-
-```mermaid
-flowchart TD
-  A["movies.json"] --> B["Combine title + description"]
-  B --> C["Normalize text<br/>lowercase, remove punctuation,<br/>remove stopwords, stem"]
-  C --> D["Inverted index<br/>term -> doc_ids"]
-  C --> E["Term frequencies<br/>doc_id -> Counter"]
-  C --> F["Doc lengths<br/>doc_id -> len"]
-  D --> G["cache/index.pkl"]
-  E --> H["cache/term_frequencies.pkl"]
-  F --> I["cache/doc_lenghts.pkl"]
-  J["doc metadata"] --> K["cache/docmap.pkl"]
+```bash
+uv run python cli/hybrid_search_cli.py rrf-search "interstller space travel" --enhance spell --limit 5
 ```
 
-The semantic pipeline is:
+## CLI Reference
 
-1. Load movies from `data/movies.json`.
-2. Combine title + description per movie.
-3. Encode each movie with a sentence-transformer model.
-4. Save the embedding matrix to `cache/movie_embeddings.npy`.
-5. Embed the query and compute cosine similarity against all movie vectors.
+### `cli/hybrid_search_cli.py`
 
-```mermaid
-flowchart TD
-  A["movies.json"] --> B["Combine title + description"]
-  B --> C["SentenceTransformer encode"]
-  C --> D["cache/movie_embeddings.npy"]
-  Q["query text"] --> E["SentenceTransformer encode"]
-  E --> F["Cosine similarity vs all docs"]
-  F --> G["Sort by score"]
-  G --> H["Top K results"]
+This is the main CLI for combined retrieval.
+
+Commands:
+
+- `normalize <scores...>`
+  - Applies min-max normalization to a list of scores.
+- `weighted-search <query> [--alpha FLOAT] [--limit INT]`
+  - Combines normalized BM25 and semantic scores.
+  - `alpha=1.0` means keyword-heavy, `alpha=0.0` means semantic-heavy.
+- `rrf-search <query> [-k INT] [--limit INT] [--enhance spell]`
+  - Combines BM25 and semantic rankings using Reciprocal Rank Fusion.
+  - `--enhance spell` attempts typo correction when `GEMINI_API_KEY` is available.
+
+Example:
+
+```bash
+uv run python cli/hybrid_search_cli.py rrf-search "briish bear" --enhance spell
 ```
 
-## CLI Commands (Routes)
+### `cli/keyword_search_cli.py`
 
-The keyword CLI is `cli/keyword_search_cli.py`. Commands:
+Commands:
 
-1. `build`
-   - Builds and writes the caches from the dataset.
-   - Files produced in `cache/`:
-     - `index.pkl`
-     - `docmap.pkl`
-     - `term_frequencies.pkl`
-     - `doc_lenghts.pkl`
+- `build`
+  - Builds and saves the BM25/index cache.
+- `tf <docid> <term>`
+  - Prints raw term frequency for a normalized term in a document.
+- `idf <term>`
+  - Prints inverse document frequency.
+- `tfidf <docid> <term>`
+  - Prints TF-IDF for a term/document pair.
+- `bm25idf <term>`
+  - Calls the BM25 IDF calculation.
+- `bm25tf <doc_id> <term> [k1] [b]`
+  - Prints the BM25 term-frequency component.
+- `bm25search <query> [limit]`
+  - Runs BM25 retrieval and prints ranked results.
 
-2. `search <query>`
-   - Intended to run a search. Currently it loads the index but does not execute a search.
+Notes:
 
-3. `tf <docid> <term>`
-   - Returns term frequency of `term` in `docid` after normalization.
+- `search <query>` exists but is not implemented beyond loading the index.
+- The keyword pipeline indexes `title + description`.
 
-4. `idf <term>`
-   - Computes inverse document frequency for `term`.
+### `cli/semantic_search_cli.py`
 
-5. `tfidf <docid> <term>`
-   - Computes TF-IDF using `tf * idf` after normalization.
+Commands:
 
-6. `bm25idf <term>`
-   - Intended to compute BM25 IDF, but currently does not print or return it in CLI.
+- `verify`
+  - Loads the sentence-transformer model and prints model details.
+- `embed_text <text>`
+  - Embeds arbitrary text and prints a short vector preview.
+- `verify_embeddings`
+  - Loads or rebuilds full-document embeddings and prints their shape.
+- `embedquery <query>`
+  - Embeds a query and prints a short vector preview.
+- `search <query> --limit <k>`
+  - Full-document semantic search.
+- `search_chunked <query> --limit <k>`
+  - Chunk-based semantic search.
+- `chunk <query> [--chunk-size INT] [--overlap INT]`
+  - Simple word-count chunking helper.
+- `embed_chunks`
+  - Builds or reloads cached chunk embeddings.
+- `semantic_chunk <query> [--max-chunk-size INT] [--overlap INT]`
+  - Sentence-aware chunking helper.
 
-7. `bm25tf <doc_id> <term> [k1] [b]`
-   - Computes BM25 TF component for `term` in `doc_id`.
-   - Defaults: `k1=1.5`, `b=0.75`.
+## Retrieval Pipelines
 
-8. `bm25search <query> [limit]`
-   - Runs BM25 search and prints top results.
-   - Default `limit=5`.
+### 1. Keyword Search
 
-The semantic CLI is `cli/semantic_search_cli.py`. Commands:
+`cli/Inverted_Index.py` builds an inverted index over:
 
-1. `verify`
-   - Loads the embedding model and prints basic model info.
+```text
+title + " " + description
+```
 
-2. `embed_text <text>`
-   - Encodes the text and prints a short slice of the vector.
-
-3. `verify_embeddings`
-   - Loads or builds embeddings and prints the matrix shape.
-
-4. `embedquery <query>`
-   - Encodes the query and prints a short slice of the vector.
-
-5. `search <query> --limit <k>`
-   - Loads or builds embeddings, embeds the query, and prints top results by cosine similarity.
-   - Default `limit=5`.
-
-## Text Normalization Pipeline
-
-Normalization is consistent with the indexer, and is required for queries to match indexed terms.
-
-Steps:
+Preprocessing:
 
 1. Lowercase
 2. Remove punctuation
-3. Remove stopwords
-4. Porter stemming
+3. Remove stopwords from `data/stopwords.txt`
+4. Apply Porter stemming
 
-```mermaid
-flowchart LR
-  Q[Raw input] --> L[Lowercase]
-  L --> P[Remove punctuation]
-  P --> S[Remove stopwords]
-  S --> T[Porter stem]
-  T --> O[Tokens used for scoring]
+Artifacts written to `cache/`:
+
+- `index.pkl`
+- `docmap.pkl`
+- `term_frequencies.pkl`
+- `doc_lenghts.pkl`
+
+BM25 scoring is implemented in `InvertedIndex.bm25_search(...)`.
+
+### 2. Semantic Search
+
+Full-document semantic search lives in [cli/lib/semantic_search.py](/home/krish/Krish/RAG/rag-search-engine/cli/lib/semantic_search.py).
+
+- Model: `all-MiniLM-L6-v2`
+- Input per movie: `"title: description"`
+- Similarity: cosine similarity
+- Cache artifact: `cache/movie_embeddings.npy`
+
+### 3. Chunked Semantic Search
+
+Chunked semantic search lives in [cli/lib/chunked_semantic_search.py](/home/krish/Krish/RAG/rag-search-engine/cli/lib/chunked_semantic_search.py).
+
+- Splits descriptions into sentence-based chunks
+- Default chunking in current code uses `chunk_size=4` and `overlap=1`
+- Stores:
+  - `cache/chunk_embeddings.npy`
+  - `cache/chunk_metadata.json`
+- Scores chunks against the query, then keeps the best chunk per movie
+
+Hybrid search currently uses this chunked semantic path.
+
+### 4. Hybrid Search
+
+`cli/hybrid_search.py` combines:
+
+- BM25 results from `InvertedIndex`
+- Chunked semantic results from `ChunkedSemanticSearch`
+
+Available fusion methods:
+
+- Weighted score fusion
+- Reciprocal Rank Fusion
+
+RRF score:
+
+```text
+1 / (k + rank)
 ```
 
-## Inverted Index
+## Cache Behavior
 
-The inverted index maps each normalized term to a list of document IDs containing the term.
+The project writes reusable artifacts into `cache/`.
 
-- `index["dream"] -> [3, 11, 25, ...]`
+- BM25 cache is created manually with `keyword_search_cli.py build`
+- Semantic caches are created on demand when the relevant search CLI runs
+- Chunk caches are automatically rebuilt if the cached chunk count no longer matches the current dataset
 
-This allows fast candidate retrieval for term-based operations.
+## Testing
 
-## TF (Term Frequency)
+Current automated coverage in the repo is focused on hybrid CLI behavior:
 
-`TF(term, doc)` is the count of `term` in `doc` after normalization.
-
-```
-TF(term, doc) = count(term in doc)
-```
-
-Computed in `InvertedIndex.get_tf` using the stored `Counter` for each document.
-
-## IDF (Inverse Document Frequency)
-
-IDF measures how rare a term is across the corpus.
-
-Implementation in `keyword_search_cli.py`:
-
-```
-IDF(term) = log((N + 1) / (DF(term) + 1))
+```bash
+uv run pytest cli/test_hybrid_search_cli.py
 ```
 
-Where:
-- `N` = number of documents
-- `DF(term)` = number of documents containing the term
+`test_gemini.py` is a manual connectivity check for the Gemini API and requires `GEMINI_API_KEY`.
 
-The `+1` smoothing avoids division by zero.
+## Known Limitations
 
-## TF-IDF
+- Several paths are hardcoded to `~/Krish/RAG/rag-search-engine/...` instead of being resolved relative to the repo root.
+- `cli/keyword_search_cli.py search` is not implemented as an actual search command.
+- `bm25idf` currently calls into the BM25 IDF logic but does not print a formatted result.
+- The repo is CLI-oriented and does not yet expose a reusable application package or service interface.
 
-TF-IDF combines TF and IDF.
+## Recommended Workflow
 
-```
-TFIDF(term, doc) = TF(term, doc) * IDF(term)
-```
+For the current codebase, the cleanest path is:
 
-Used to measure how relevant a term is to a document, relative to the corpus.
-
-## BM25
-
-BM25 is a ranked retrieval function that extends TF-IDF with term saturation and document length normalization.
-
-### BM25 TF Component
-
-```
-TF_BM25 = (tf * (k1 + 1)) / (tf + k1 * L_d)
-```
-
-Where:
-- `tf` = term frequency in document
-- `k1` = term saturation parameter (default 1.5)
-- `L_d` = length normalization term
-
-```
-L_d = 1 - b + b * (doc_len / avg_doc_len)
-```
-
-`b` controls length normalization strength (default 0.75).
-
-### BM25 IDF Component
-
-```
-IDF_BM25 = log((N - DF + 0.5) / (DF + 0.5) + 1)
-```
-
-### BM25 Score
-
-For a query with tokens `t1..tm`:
-
-```
-BM25(doc, query) = sum(IDF_BM25(ti) * TF_BM25(ti, doc))
-```
-
-### BM25 Search Workflow
-
-```mermaid
-flowchart TD
-  A[Query] --> B[Normalize tokens]
-  B --> C[For each doc]
-  C --> D[For each token]
-  D --> E[Compute IDF_BM25]
-  D --> F[Compute TF_BM25]
-  E --> G[Accumulate score]
-  F --> G
-  G --> H[Sort by score]
-  H --> I[Top K results]
-```
-
-## Semantic Search (Embeddings + Cosine Similarity)
-
-Think of each movie description as a short paragraph in a library. Keyword search works like a literal index at the back of a book: if the exact term appears, you can find the page. Semantic search tries to answer a different question: *“Which pages talk about the same idea, even if they don’t share the same words?”*
-
-To do that, each movie is converted into a vector (an embedding) using a pretrained sentence-transformer model. The query becomes another vector in the same space. If two vectors point in similar directions, their meanings are close; if they point in different directions, the meanings drift apart.
-
-The project computes similarity with cosine similarity:
-
-```
-cosine(vec_q, vec_d) = (vec_q · vec_d) / (||vec_q|| * ||vec_d||)
-```
-
-Higher cosine scores mean the query and the document are closer in meaning. Results are sorted by this score, and the top K are returned.
-
-## Semantic Search Workflow
-
-```mermaid
-flowchart TD
-  A[Query] --> B[Embed with SentenceTransformer]
-  C[All movie docs] --> D[Embed or load cache]
-  B --> E[Cosine similarity]
-  D --> E
-  E --> F[Sort by score]
-  F --> G[Top K results]
-```
-
-## Files and Modules
-
-- `cli/keyword_search_cli.py`:
-  - CLI entry point and command routing.
-  - Implements TF, IDF, TF-IDF calculation logic.
-
-- `cli/Inverted_Index.py`:
-  - Core index builder and BM25 functions.
-  - Loads/saves cache files.
-
-- `cli/semantic_search_cli.py`:
-  - CLI entry point for semantic search commands.
-
-- `cli/lib/semantic_search.py`:
-  - Sentence-transformer embedding builder and cosine similarity search.
-
-- `data/movies.json`:
-  - Movie dataset (title, description, id, etc.).
-
-- `data/stopwords.txt`:
-  - Stopword list used during normalization.
-
-- `cache/`:
-  - `index.pkl`, `docmap.pkl`, `term_frequencies.pkl`, `doc_lenghts.pkl`.
-  - `movie_embeddings.npy` (semantic embedding matrix).
-
-## Observed Inconsistencies / Mistakes
-
-1. `search` command in `cli/keyword_search_cli.py` loads the index and then does nothing.
-2. `bm25idf` command calls `get_bm25_idf` but never prints or returns the value.
-3. `idf` in CLI normalizes with stopwords + stemming but does not lowercase; index terms are lowercased, so casing mismatches can happen.
-4. `tfidf` computation uses `Obj.index[str(args.term)]` without preprocessing the term, which can miss or throw `KeyError` for terms not in raw form.
-5. `tfidf` path calculates `clean_query` but does not use it for scoring.
-6. Two different implementations of `filter_stopwords_stemming` exist (`cli/keyword_search_cli.py` and `cli/Inverted_Index.py`) with slightly different behavior and data sourcing.
-7. Hardcoded repo-specific absolute paths (`~/Krish/RAG/rag-search-engine/...`) reduce portability.
-8. Cache file name is `doc_lenghts.pkl` (typo: “lenghts”), which is consistent internally but error-prone for tooling.
-9. `bm25tf` CLI accepts `b` as an argument but does not pass it into `get_bm25_tf` in `keyword_search_cli.py` (only `k1` is passed), so `b` is ignored.
-10. `bm25_idf_command` wrapper computes value and discards it.
-11. Some unused variables exist (e.g., `clean_query` in `tfidf` path).
-12. `cli/Old_*.py` files are present and may cause confusion about which implementation is active.
-13. `cli/lib/semantic_search.py` uses an f-string with nested double quotes (`document["title"]`), which raises a syntax error in `search`.
-14. Semantic search uses hardcoded absolute paths (`~/Krish/RAG/rag-search-engine/...`), which reduces portability.
-15. `search` in `semantic_search_cli.py` prints strings that already include `\n`, resulting in extra blank lines.
+1. `uv sync`
+2. `uv run python cli/keyword_search_cli.py build`
+3. `uv run python cli/hybrid_search_cli.py rrf-search "<query>" --limit 5`
+4. Add `--enhance spell` only if `GEMINI_API_KEY` is configured

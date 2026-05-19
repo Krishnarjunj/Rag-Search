@@ -2,9 +2,13 @@
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 from hybrid_search import HybridSearch
+
+
+GEMMA_MODEL = os.environ.get("GEMMA_MODEL", "gemma-3-27b-it")
 
 
 def normalize_scores(scores: list[float]) -> list[float]:
@@ -26,6 +30,37 @@ def load_movies():
     with open(file_path_movies, "r") as f:
         data_json = json.load(f)
     return data_json["movies"]
+
+
+def enhance_query(query: str, method: str | None) -> str:
+    if method is None:
+        return query
+
+    if method != "spell":
+        raise ValueError(f"Unsupported enhancement method: {method}")
+
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        return query
+
+    from google import genai
+
+    prompt = f"""Fix any spelling errors in the user-provided movie search query below.
+Correct only clear, high-confidence typos. Do not rewrite, add, remove, or reorder words.
+Preserve punctuation and capitalization unless a change is required for a typo fix.
+If there are no spelling errors, or if you're unsure, output the original query unchanged.
+Output only the final query text, nothing else.
+User query: "{query}"
+"""
+
+    try:
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(model=GEMMA_MODEL, contents=prompt)
+        enhanced_query = (response.text or "").strip()
+    except Exception:
+        return query
+
+    return enhanced_query or query
 
 
 def main() -> None:
@@ -50,6 +85,12 @@ def main() -> None:
     rrf_search_parser.add_argument("query", type=str)
     rrf_search_parser.add_argument("-k", type=int, default=60)
     rrf_search_parser.add_argument("--limit", type=int, default=5)
+    rrf_search_parser.add_argument(
+        "--enhance",
+        type=str,
+        choices=["spell"],
+        help="Query enhancement method",
+    )
 
     args = parser.parse_args()
 
@@ -69,8 +110,12 @@ def main() -> None:
                 )
                 print(f"  {result['document'][:100]}...")
         case "rrf-search":
+            query = enhance_query(args.query, args.enhance)
+            if args.enhance is not None:
+                print(f"Enhanced query ({args.enhance}): '{args.query}' -> '{query}'\n")
+
             search = HybridSearch(load_movies())
-            results = search.rrf_search(args.query, args.k, args.limit)[: args.limit]
+            results = search.rrf_search(query, args.k, args.limit)[: args.limit]
 
             for index, result in enumerate(results, start=1):
                 print(f"{index}. {result['title']}")
