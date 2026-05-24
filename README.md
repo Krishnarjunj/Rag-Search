@@ -5,7 +5,7 @@ Small movie-search project that combines:
 - BM25 keyword retrieval
 - Sentence-transformer semantic retrieval
 - Hybrid fusion over both ranking strategies
-- Optional Gemini-based query spelling correction for hybrid search
+- Optional Gemma-based query enhancement for hybrid search
 
 The codebase is organized as standalone Python CLIs rather than a packaged library. The current primary workflow is `cli/hybrid_search_cli.py`.
 
@@ -17,7 +17,7 @@ The codebase is organized as standalone Python CLIs rather than a packaged libra
 - Run BM25-only search
 - Run semantic-only search
 - Run hybrid search with either weighted score fusion or Reciprocal Rank Fusion (RRF)
-- Optionally fix obvious spelling mistakes in a query before hybrid search
+- Optionally fix spelling or rewrite vague queries before hybrid search
 
 ## Repository Layout
 
@@ -59,8 +59,8 @@ uv sync
 
 Optional environment variables:
 
-- `GEMINI_API_KEY`: enables query spelling correction in hybrid RRF search
-- `GEMMA_MODEL`: overrides the model used for spelling correction in `cli/hybrid_search_cli.py`
+- `GEMINI_API_KEY`: enables query enhancement in hybrid RRF search
+- `GEMMA_MODEL`: overrides the Gemma model used for query enhancement in `cli/hybrid_search_cli.py`
 - `GEMINI_MODEL`: used by `test_gemini.py`
 
 ## Quick Start
@@ -101,6 +101,12 @@ Run hybrid RRF search with optional spell correction:
 uv run python cli/hybrid_search_cli.py rrf-search "interstller space travel" --enhance spell --limit 5
 ```
 
+Run hybrid RRF search with optional query rewrite:
+
+```bash
+uv run python cli/hybrid_search_cli.py rrf-search "that bear movie where leo gets attacked" --enhance rewrite --limit 5
+```
+
 ## CLI Reference
 
 ### `cli/hybrid_search_cli.py`
@@ -114,14 +120,19 @@ Commands:
 - `weighted-search <query> [--alpha FLOAT] [--limit INT]`
   - Combines normalized BM25 and semantic scores.
   - `alpha=1.0` means keyword-heavy, `alpha=0.0` means semantic-heavy.
-- `rrf-search <query> [-k INT] [--limit INT] [--enhance spell]`
+- `rrf-search <query> [-k INT] [--limit INT] [--enhance {spell,rewrite}]`
   - Combines BM25 and semantic rankings using Reciprocal Rank Fusion.
   - `--enhance spell` attempts typo correction when `GEMINI_API_KEY` is available.
+  - `--enhance rewrite` asks Gemma to rewrite vague queries into search-friendly movie phrases.
 
 Example:
 
 ```bash
 uv run python cli/hybrid_search_cli.py rrf-search "briish bear" --enhance spell
+```
+
+```bash
+uv run python cli/hybrid_search_cli.py rrf-search "movie about bear in london with marmalade" --enhance rewrite
 ```
 
 ### `cli/keyword_search_cli.py`
@@ -269,4 +280,4 @@ For the current codebase, the cleanest path is:
 1. `uv sync`
 2. `uv run python cli/keyword_search_cli.py build`
 3. `uv run python cli/hybrid_search_cli.py rrf-search "<query>" --limit 5`
-4. Add `--enhance spell` only if `GEMINI_API_KEY` is configured
+4. Add `--enhance spell` or `--enhance rewrite` only if `GEMINI_API_KEY` is configured
